@@ -10,6 +10,10 @@ import torch
 
 def make_pairs(imgs, scene_graph='complete', prefilter=None, symmetrize=True):
     pairs = []
+<<<<<<< HEAD
+=======
+    print('MAKE PAIRS function', scene_graph)
+>>>>>>> master
     if scene_graph == 'complete':  # complete graph
         for i in range(len(imgs)):
             for j in range(i):
@@ -32,11 +36,20 @@ def make_pairs(imgs, scene_graph='complete', prefilter=None, symmetrize=True):
         for i, j in pairsid:
             pairs.append((imgs[i], imgs[j]))
     elif scene_graph.startswith('logwin'):
+<<<<<<< HEAD
+=======
+        print('TYPE:' , 'logwin')
+>>>>>>> master
         iscyclic = not scene_graph.endswith('noncyclic')
         try:
             winsize = int(scene_graph.split('-')[1])
         except Exception as e:
             winsize = 3
+<<<<<<< HEAD
+=======
+
+        print('WINSIZE', winsize)
+>>>>>>> master
         offsets = [2**i for i in range(winsize)]
         pairsid = set()
         for i in range(len(imgs)):
@@ -49,6 +62,10 @@ def make_pairs(imgs, scene_graph='complete', prefilter=None, symmetrize=True):
                     continue
                 pairsid.add((i, j) if i < j else (j, i))
         for i, j in pairsid:
+<<<<<<< HEAD
+=======
+            print(i, j)
+>>>>>>> master
             pairs.append((imgs[i], imgs[j]))
     elif scene_graph.startswith('oneref'):
         refid = int(scene_graph.split('-')[1]) if '-' in scene_graph else 0
