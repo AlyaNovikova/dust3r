@@ -35,6 +35,7 @@ import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
 from croco.utils.misc import NativeScalerWithGradNormCount as NativeScaler  # noqa
 
+import wandb
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DUST3R training', add_help=False)
@@ -90,6 +91,11 @@ def get_args_parser():
 
 
 def train(args):
+    wandb.init(
+        project="epfl-coral",
+        config=args
+    )
+    
     misc.init_distributed_mode(args)
     global_rank = misc.get_rank()
     world_size = misc.get_world_size()
@@ -190,6 +196,7 @@ def train(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     train_stats = test_stats = {}
+
     for epoch in range(args.start_epoch, args.epochs + 1):
 
         # Save immediately the last checkpoint
@@ -300,6 +307,15 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss, loss_details = loss_tuple  # criterion returns two values
         loss_value = float(loss)
 
+        regression_loss_wandb = loss_details['Regr3D_pts3d_1'] + loss_details['Regr3D_pts3d_2']
+        confidence_loss_wandb = loss_details['conf_loss_1'] + loss_details['conf_loss2']
+
+        wandb.log({
+            "total_loss": loss_value,
+            "regression_loss": regression_loss_wandb,
+            "confidence_loss": confidence_loss_wandb
+        })
+
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value), force=True)
             sys.exit(1)
@@ -361,6 +377,16 @@ def test_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                                        symmetrize_batch=True,
                                        use_amp=bool(args.amp), ret='loss')
         loss_value, loss_details = loss_tuple  # criterion returns two values
+
+        # regression_loss_wandb = loss_details['Regr3D_pts3d_1'] + loss_details['Regr3D_pts3d_2']
+        # confidence_loss_wandb = loss_details['conf_loss_1'] + loss_details['conf_loss2']
+
+        wandb.log({
+            "test_loss": float(loss_value),
+            # "regression_loss": regression_loss_wandb,
+            # "confidence_loss": confidence_loss_wandb
+        })
+
         metric_logger.update(loss=float(loss_value), **loss_details)
 
     # gather the stats from all processes

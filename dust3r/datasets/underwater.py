@@ -101,7 +101,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         return image_poses
 
     def __len__(self):
-        return len(self.split_data)
+        return len(self.split_data) - 1
 
     def _quaternion_to_rotation_matrix(self, q0, q1, q2, q3):
         r00 = 2 * (q0 * q0 + q1 * q1) - 1
@@ -140,69 +140,72 @@ class UnderWaterDataset(BaseStereoViewDataset):
         return K
 
     def _get_views(self, idx, resolution, rng):
-        image_id = self.split_data[idx]
-        pose = self.image_poses.get(image_id)
-        if not pose:
-            raise ValueError(f"image id {image_id} not found in images.txt")
+        views = []
 
-        camera_id = pose["camera_id"]
-        intrinsics = self.intrinsic_camera.get(camera_id)
-        if not intrinsics:
-            raise ValueError(f"camera id {camera_id} not found in cameras.txt")
+        for idx_current in [idx, idx + 1]:
+            image_id = self.split_data[idx_current]
+            pose = self.image_poses.get(image_id)
+            if not pose:
+                raise ValueError(f"image id {image_id} not found in images.txt")
 
-        qw, qx, qy, qz = pose["rotation"]
-        tx, ty, tz = pose["translation"]
-        camera_pose = self._extrinsics_matrix(qw, qx, qy, qz, tx, ty, tz)
+            camera_id = pose["camera_id"]
+            intrinsics = self.intrinsic_camera.get(camera_id)
+            if not intrinsics:
+                raise ValueError(f"camera id {camera_id} not found in cameras.txt")
 
-        fx = intrinsics['fx']
-        fy = intrinsics['fy']
-        cx = intrinsics['cx']
-        cy = intrinsics['cy']
+            qw, qx, qy, qz = pose["rotation"]
+            tx, ty, tz = pose["translation"]
+            camera_pose = self._extrinsics_matrix(qw, qx, qy, qz, tx, ty, tz)
 
-        camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
+            fx = intrinsics['fx']
+            fy = intrinsics['fy']
+            cx = intrinsics['cx']
+            cy = intrinsics['cy']
 
-        image_name = pose["image_name"]
-        rgb_image_path = osp.join(self.images_path, image_name)
-        depthmap_path = osp.join(self.depthmap_path, f"{image_name}.geometric.bin")
+            camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
 
-        rgb_image = imread_cv2(rgb_image_path)
-        if rgb_image is None:
-            raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
+            image_name = pose["image_name"]
+            rgb_image_path = osp.join(self.images_path, image_name)
+            depthmap_path = osp.join(self.depthmap_path, f"{image_name}.geometric.bin")
 
-        with open(depthmap_path, "rb") as fid:
-            width, height, channels = np.genfromtxt(
-                fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
-            )
-            fid.seek(0)
-            num_delimiter = 0
-            byte = fid.read(1)
-            while True:
-                if byte == b"&":
-                    num_delimiter += 1
-                    if num_delimiter >= 3:
-                        break
+            rgb_image = imread_cv2(rgb_image_path)
+            if rgb_image is None:
+                raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
+
+            with open(depthmap_path, "rb") as fid:
+                width, height, channels = np.genfromtxt(
+                    fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
+                )
+                fid.seek(0)
+                num_delimiter = 0
                 byte = fid.read(1)
-            array = np.fromfile(fid, np.float32)
-        array = array.reshape((width, height, channels), order="F")
-        depthmap = np.transpose(array, (1, 0, 2)).squeeze()
+                while True:
+                    if byte == b"&":
+                        num_delimiter += 1
+                        if num_delimiter >= 3:
+                            break
+                    byte = fid.read(1)
+                array = np.fromfile(fid, np.float32)
+            array = array.reshape((width, height, channels), order="F")
+            depthmap = np.transpose(array, (1, 0, 2)).squeeze()
 
-        if depthmap is None:
-            raise FileNotFoundError(f"Depth map for {image_name} not found at {depthmap_path}")
+            if depthmap is None:
+                raise FileNotFoundError(f"Depth map for {image_name} not found at {depthmap_path}")
 
-        depthmap[~np.isfinite(depthmap)] = 0
+            depthmap[~np.isfinite(depthmap)] = 0
 
-        rgb_image, depthmap, camera_intrinsics = self._crop_resize_if_necessary(
-            rgb_image, depthmap, camera_intrinsics, resolution, rng=rng, info=image_name)
+            rgb_image, depthmap, camera_intrinsics = self._crop_resize_if_necessary(
+                rgb_image, depthmap, camera_intrinsics, resolution, rng=rng, info=image_name)
 
-        views = dict(
-            img=rgb_image,
-            depthmap=depthmap,
-            camera_pose=camera_pose.astype(np.float32),
-            camera_intrinsics=camera_intrinsics.astype(np.float32),
-            dataset='UnderWaterDataset',
-            label=self.ROOT,
-            instance=image_name
-        )
+            views.append(dict(
+                img=rgb_image,
+                depthmap=depthmap,
+                camera_pose=camera_pose.astype(np.float32),
+                camera_intrinsics=camera_intrinsics.astype(np.float32),
+                dataset='UnderWaterDataset',
+                label=self.ROOT,
+                instance=image_name
+            ))
 
         return views
 
