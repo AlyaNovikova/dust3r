@@ -4,6 +4,7 @@
 #SBATCH --mem 32G
 #SBATCH --time 2:00
 #SBATCH --gres gpu:1
+#SBATCH --partition h100
 
 # Activate virtual environment or conda environment
 conda activate mast3r
