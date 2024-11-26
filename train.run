@@ -1,5 +1,9 @@
 #!/bin/bash -l
-#SBATCH --partition=h100
+#SBATCH --ntasks 1
+#SBATCH --cpus-per-task 1
+#SBATCH --mem 32G
+#SBATCH --time 2:00
+#SBATCH --gres gpu:1
 
 # Activate virtual environment or conda environment
 conda activate mast3r
