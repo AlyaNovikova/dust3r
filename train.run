@@ -1,4 +1,5 @@
 #!/bin/bash -l
+#SBATCH --chdir /home/novikova/coral/dust3r/output
 #SBATCH --ntasks 1
 #SBATCH --cpus-per-task 80
 #SBATCH --mem 32G
