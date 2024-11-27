@@ -1,8 +1,8 @@
 #!/bin/bash -l
 #SBATCH --chdir /home/novikova/coral/dust3r/output
 #SBATCH --ntasks 1
-#SBATCH --cpus-per-task 80
-#SBATCH --mem 32G
+#SBATCH --cpus-per-task 32
+#SBATCH --mem 80G
 #SBATCH --time 2:00
 #SBATCH --gres gpu:1
 #SBATCH --partition gpu
@@ -17,5 +17,5 @@ python train.py \
 --train_criterion "ConfLoss(Regr3D(L21, norm_mode='avg_dis'), alpha=0.2)"  \
 --test_criterion "Regr3D_ScaleShiftInv(L21, gt_scale=True)"  \
 --pretrained "checkpoints/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth"  \
---lr 0.0001 --min_lr 1e-06 --warmup_epochs 5 --epochs 50 --batch_size 1 --accum_iter 8 \
+--lr 0.0001 --min_lr 1e-06 --warmup_epochs 5 --epochs 50 --batch_size 4 --accum_iter 8 \
 --save_freq 1 --keep_freq 5 --eval_freq 1  --output_dir "checkpoints/dust3r_underwater_512_dpt"
