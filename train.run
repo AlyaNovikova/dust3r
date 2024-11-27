@@ -1,5 +1,4 @@
 #!/bin/bash -l
-#SBATCH --chdir /home/novikova/coral/dust3r/output
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --mem 32G
