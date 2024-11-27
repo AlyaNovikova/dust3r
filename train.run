@@ -1,11 +1,13 @@
 #!/bin/bash -l
 #SBATCH --chdir /home/novikova/coral/dust3r/output
-#SBATCH --ntasks 1
-#SBATCH --cpus-per-task 32
-#SBATCH --mem 80G
-#SBATCH --time 2:00
-#SBATCH --gres gpu:1
-#SBATCH --partition gpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --mem 32G
+#SBATCH --cpus-per-task=32
+#SBATCH --partition=gpu
+#SBATCH --qos=gpu
+#SBATCH --gres=gpu:2
+#SBATCH --time=71:59:00
 
 # Activate virtual environment or conda environment
 conda activate mast3r
