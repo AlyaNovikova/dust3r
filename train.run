@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --ntasks 1
-#SBATCH --cpus-per-task 32
+#SBATCH --cpus-per-task 80
 #SBATCH --mem 32G
 #SBATCH --time 2:00
 #SBATCH --gres gpu:1
