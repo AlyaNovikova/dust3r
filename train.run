@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --time=23:59:00
 
 # Activate virtual environment or conda environment
@@ -18,5 +18,5 @@ python train.py \
 --train_criterion "ConfLoss(Regr3D(L21, norm_mode='avg_dis'), alpha=0.2)"  \
 --test_criterion "Regr3D_ScaleShiftInv(L21, gt_scale=True)"  \
 --pretrained "checkpoints/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth"  \
---lr 0.0001 --min_lr 1e-06 --warmup_epochs 5 --epochs 50 --batch_size 4 --accum_iter 8 \
+--lr 0.0001 --min_lr 1e-06 --warmup_epochs 5 --epochs 50 --batch_size 2 --accum_iter 8 \
 --save_freq 1 --keep_freq 5 --eval_freq 1  --output_dir "checkpoints/dust3r_underwater_512_dpt"
