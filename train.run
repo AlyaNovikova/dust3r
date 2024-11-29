@@ -1,9 +1,9 @@
 #!/bin/bash -l
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --mem 32G
+#SBATCH --mem 80G
 #SBATCH --cpus-per-task=32
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu-xl
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --time=23:59:00
