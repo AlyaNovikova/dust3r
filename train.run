@@ -12,7 +12,7 @@
 # Activate virtual environment or conda environment
 conda activate mast3r
 
-python train.py \
+python /home/novikova/coral/dust3r/train.py \
 --train_dataset "UnderWaterDataset(split='train', ROOT='/home/novikova/coral/dense_glomap_output', resolution=[(512, 384), (512, 336), (512, 288), (512, 256), (512, 160)])"      \
 --test_dataset "UnderWaterDataset(split='test', ROOT='/home/novikova/coral/dense_glomap_output', resolution=(512,384))" \
 --model "AsymmetricCroCo3DStereo(pos_embed='RoPE100', patch_embed_cls='ManyAR_PatchEmbed', img_size=(512, 512), head_type='dpt', output_mode='pts3d', depth_mode=('exp', -inf, inf), conf_mode=('exp', 1, inf), enc_embed_dim=1024, enc_depth=24, enc_num_heads=16, dec_embed_dim=768, dec_depth=12, dec_num_heads=12)" \
@@ -20,4 +20,4 @@ python train.py \
 --test_criterion "Regr3D_ScaleShiftInv(L21, gt_scale=True)"  \
 --pretrained "checkpoints/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth"  \
 --lr 0.0001 --min_lr 1e-06 --warmup_epochs 5 --epochs 50 --batch_size 1 --accum_iter 8 \
---save_freq 1 --keep_freq 5 --eval_freq 1  --output_dir "checkpoints/dust3r_underwater_512_dpt"
+--save_freq 1 --keep_freq 5 --eval_freq 1  --output_dir "dust3r_checkpoints/dust3r_underwater_512_dpt"
