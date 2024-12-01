@@ -199,18 +199,18 @@ class AsymmetricCroCo3DStereo (
 
     def forward(self, view1, view2):
         # encode the two images --> B,S,D
-        # (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2)
-        def encode_fn(view1, view2):
-            return self._encode_symmetrized(view1, view2)
-
-        (shape1, shape2), (feat1, feat2), (pos1, pos2) = checkpoint(encode_fn, view1, view2)
+        (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2)
+        # def encode_fn(view1, view2):
+        #     return self._encode_symmetrized(view1, view2)
+        #
+        # (shape1, shape2), (feat1, feat2), (pos1, pos2) = checkpoint(encode_fn, view1, view2)
 
         # combine all ref images into object-centric representation
-        # dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2)
-        def decode_fn(feat1, pos1, feat2, pos2):
-            return self._decoder(feat1, pos1, feat2, pos2)
-
-        dec1, dec2 = checkpoint(decode_fn, feat1, pos1, feat2, pos2)
+        dec1, dec2 = self._decoder(feat1, pos1, feat2, pos2)
+        # def decode_fn(feat1, pos1, feat2, pos2):
+        #     return self._decoder(feat1, pos1, feat2, pos2)
+        #
+        # dec1, dec2 = checkpoint(decode_fn, feat1, pos1, feat2, pos2)
 
         with torch.cuda.amp.autocast(enabled=False):
             res1 = self._downstream_head(1, [tok.float() for tok in dec1], shape1)
