@@ -50,6 +50,7 @@ class ImageList:
         return ImageList(self._dispatch('crop', *args, **kwargs))
 
     def _dispatch(self, func, *args, **kwargs):
+        args = tuple(arg.tolist() if isinstance(arg, np.ndarray) else arg for arg in args)
         return [getattr(im, func)(*args, **kwargs) for im in self.images]
 
 
