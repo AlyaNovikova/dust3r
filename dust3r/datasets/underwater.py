@@ -44,7 +44,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
         """
         Split the data into training and testing subsets (80/20 split)
         """
-        image_ids = list(self.image_poses.keys())
+        # image_ids = list(self.image_poses.keys())
+        image_ids = sorted(self.image_poses.keys())
 
         split_index = int(0.8 * len(image_ids))
         if train:
