@@ -149,7 +149,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         return K
 
     def _get_one_view(self, idx, indexes):
-        print('idxxxxxxxxx', idx)
+        # print('idxxxxxxxxx', idx)
         if isinstance(idx, tuple):
             # the idx is specifying the aspect-ratio
             idx, ar_idx = idx
