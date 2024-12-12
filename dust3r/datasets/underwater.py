@@ -154,7 +154,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
             # the idx is specifying the aspect-ratio
             idx, ar_idx = idx
         else:
-            assert len(self._resolutions) == 1
+            # assert len(self._resolutions) == 1
             ar_idx = 0
 
         # set-up the rng
