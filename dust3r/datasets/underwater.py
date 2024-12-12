@@ -332,7 +332,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         for i in range(n):
             next_indices = list(range(i + 1, min(i + pairs_per_image + 1, n), step))
             # next_indices = list(range(i + 1, min(i + 2, n)))
-            pairs.extend([[i, j] for j in next_indices])
+            pairs.extend([[self.split_data[i], self.split_data[j]] for j in next_indices])
 
         pair_scores = self.select_best_pairs(pairs)
         selected_pairs = []
@@ -349,8 +349,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
         print('LEN selected_pairs', len(selected_pairs))
 
         for i in range(n - 1):
-            if (i, i + 1) not in selected_pairs:
-                selected_pairs.append((i, i + 1))
+            if (self.split_data[i], self.split_data[i + 1]) not in selected_pairs:
+                selected_pairs.append((self.split_data[i], self.split_data[i + 1]))
 
         print('LEN selected_pairs with adjacent frames', len(selected_pairs))
 
