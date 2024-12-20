@@ -46,6 +46,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
         else:
             raise ValueError("split must be either 'train' or 'test'")
 
+        # print(self.split_data)
+
         self.selected_pairs = self._create_pairs_indexes()
 
     def _get_split_data(self, train=True):
@@ -96,7 +98,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         for line in lines[4::2]:  # Skip the header
             if line.strip():
                 parts = line.split()
-                image_id = int(parts[0])
+                image_id = int(parts[0]) - 1
                 qw, qx, qy, qz = map(float, parts[1:5])
                 tx, ty, tz = map(float, parts[5:8])
                 camera_id = int(parts[8])
@@ -168,8 +170,10 @@ class UnderWaterDataset(BaseStereoViewDataset):
         resolution = self._resolutions[ar_idx]  # DO NOT CHANGE THIS (compatible with BatchedRandomSampler)
 
         idx_current = idx
+        # print('idx_current', idx_current)
 
         image_id = indexes[idx_current]
+        # print('image_id', image_id)
         pose = self.image_poses.get(image_id)
         if not pose:
             raise ValueError(f"image id {image_id} not found in images.txt")
@@ -222,6 +226,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
         rgb_image, depthmap, camera_intrinsics = self._crop_resize_if_necessary(
             rgb_image, depthmap, camera_intrinsics, resolution, rng=self._rng, info=image_name)
+
+        # print('image_name', image_name)
 
         return dict(
             img=rgb_image,
@@ -292,11 +298,13 @@ class UnderWaterDataset(BaseStereoViewDataset):
         angle_term = 4 * np.cos(alpha) * (1 - np.cos(alpha))
         return iou * angle_term if angle_term > 0 else 0
 
-    def select_best_pairs(self, pairs_indexes, iou_threshold=0.75, score_threshold=0.001):
+    def select_best_pairs(self, pairs_indexes, iou_threshold=0.85, score_threshold=0.001):
         """
         Select the best image pairs using a greedy algorithm
         """
         pair_scores = []
+
+        # print('pairs_indexes', pairs_indexes)
 
         for pair_ij in tqdm(pairs_indexes):
             # if iter_cur % 100 == 0:
@@ -319,12 +327,12 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
             score = self.quality_pair_score(iou, alpha)
             if score > score_threshold:
-                pair_scores.append((score, i, j))
+                pair_scores.append((score, alpha, self.split_data[i], self.split_data[j]))
 
         pair_scores.sort(key=lambda x: x[0], reverse=True)
         return pair_scores
 
-    def _create_pairs_indexes(self, pairs_per_image=10, step=3, image_threshold=50):
+    def _create_pairs_indexes(self, pairs_per_image=50, step=4, image_threshold=50):
         n = len(self.split_data)
 
         pairs = []
@@ -332,27 +340,28 @@ class UnderWaterDataset(BaseStereoViewDataset):
         for i in range(n):
             next_indices = list(range(i + 1, min(i + pairs_per_image + 1, n), step))
             # next_indices = list(range(i + 1, min(i + 2, n)))
-            pairs.extend([[self.split_data[i], self.split_data[j]] for j in next_indices])
+            pairs.extend([[i, j] for j in next_indices])
+            # pairs.extend([[self.split_data[i], self.split_data[j]] for j in next_indices])
 
         pair_scores = self.select_best_pairs(pairs)
         selected_pairs = []
         used_images = defaultdict(int)
 
-        for score, i, j in pair_scores:
+        for score, alpha, i, j in pair_scores:
             if used_images[i] > image_threshold or used_images[j] > image_threshold:
                 continue
 
-            selected_pairs.append((i, j))
+            selected_pairs.append((i, j, score, alpha))
             used_images[i] += 1
             used_images[j] += 1
 
         print('LEN selected_pairs', len(selected_pairs))
 
-        for i in range(n - 1):
-            if (self.split_data[i], self.split_data[i + 1]) not in selected_pairs:
-                selected_pairs.append((self.split_data[i], self.split_data[i + 1]))
+        # for i in range(n - 1):
+        #     if (self.split_data[i], self.split_data[i + 1]) not in selected_pairs:
+        #         selected_pairs.append((self.split_data[i], self.split_data[i + 1]))
 
-        print('LEN selected_pairs with adjacent frames', len(selected_pairs))
+        # print('LEN selected_pairs with adjacent frames', len(selected_pairs))
 
         return selected_pairs
 
@@ -360,7 +369,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
     def _get_views(self, idx, resolution, rng):
         views = []
 
-        for idx_current in self.selected_pairs[idx]:
+        for idx_current in self.selected_pairs[idx][:2]:
             image_id = idx_current
             pose = self.image_poses.get(image_id)
             if not pose:
