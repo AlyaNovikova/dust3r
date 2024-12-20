@@ -332,7 +332,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         pair_scores.sort(key=lambda x: x[0], reverse=True)
         return pair_scores
 
-    def _create_pairs_indexes(self, pairs_per_image=40, step=3, image_threshold=50):
+    def _create_pairs_indexes(self, pairs_per_image=30, step=2, image_threshold=50):
         n = len(self.split_data)
 
         pairs = []
