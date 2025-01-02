@@ -17,8 +17,13 @@ from dust3r.utils.image import imread_cv2
 from collections import defaultdict
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from dust3r.datasets.utils.read_write_model import (read_cameras_binary, read_images_binary,
+                                                    read_cameras_text, read_images_text)
+
 from scipy.spatial import cKDTree
 
+import open3d as o3d
 
 class UnderWaterDataset(BaseStereoViewDataset):
     def __init__(self, *args, split, ROOT, **kwargs):
@@ -33,11 +38,20 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
         self.intrinsic_cameras_path = osp.join(self.ROOT, 'sparse_txt', 'cameras.txt')
         self.cameras_path = osp.join(self.ROOT, 'sparse_txt', 'images.txt')
+
         self.images_path = osp.join(self.ROOT, 'images')
         self.depthmap_path = osp.join(self.ROOT, 'stereo', 'depth_maps')
+        self.normal_depthmap_path = osp.join(self.ROOT, 'stereo', 'normal_maps')
 
-        self.intrinsic_camera = self._load_intrinsic_camera_params(self.intrinsic_cameras_path)
-        self.image_poses = self._load_image_poses(self.cameras_path)
+        if not osp.exists(self.intrinsic_cameras_path):
+            self.intrinsic_cameras_path = osp.join(self.ROOT, 'sparse', 'cameras.bin')
+            self.cameras_path = osp.join(self.ROOT, 'sparse', 'images.bin')
+
+            self.intrinsic_camera = read_cameras_binary(self.intrinsic_cameras_path)
+            self.image_poses = read_images_binary(self.cameras_path)
+        else:
+            self.intrinsic_camera = read_cameras_text(self.intrinsic_cameras_path)
+            self.image_poses = read_images_text(self.cameras_path)
 
         if split == "train":
             self.split_data = self._get_split_data(train=True)
@@ -45,8 +59,6 @@ class UnderWaterDataset(BaseStereoViewDataset):
             self.split_data = self._get_split_data(train=False)
         else:
             raise ValueError("split must be either 'train' or 'test'")
-
-        # print(self.split_data)
 
         self.selected_pairs = self._create_pairs_indexes()
 
@@ -114,33 +126,63 @@ class UnderWaterDataset(BaseStereoViewDataset):
     def __len__(self):
         return len(self.selected_pairs)
 
-    def _quaternion_to_rotation_matrix(self, q0, q1, q2, q3):
-        r00 = 2 * (q0 * q0 + q1 * q1) - 1
-        r01 = 2 * (q1 * q2 - q0 * q3)
-        r02 = 2 * (q1 * q3 + q0 * q2)
+    def _quaternion_to_rotation_matrix(self, qvec):
+        return np.array([
+            [
+                1 - 2 * qvec[2] ** 2 - 2 * qvec[3] ** 2,
+                2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
+                2 * qvec[3] * qvec[1] + 2 * qvec[0] * qvec[2]
+            ], [
+                2 * qvec[1] * qvec[2] + 2 * qvec[0] * qvec[3],
+                1 - 2 * qvec[1] ** 2 - 2 * qvec[3] ** 2,
+                2 * qvec[2] * qvec[3] - 2 * qvec[0] * qvec[1]
+            ], [
+                2 * qvec[3] * qvec[1] - 2 * qvec[0] * qvec[2],
+                2 * qvec[2] * qvec[3] + 2 * qvec[0] * qvec[1],
+                1 - 2 * qvec[1] ** 2 - 2 * qvec[2] ** 2
+            ]
+        ])
+        # r00 = 2 * (q0 * q0 + q1 * q1) - 1
+        # r01 = 2 * (q1 * q2 - q0 * q3)
+        # r02 = 2 * (q1 * q3 + q0 * q2)
+        #
+        # r10 = 2 * (q1 * q2 + q0 * q3)
+        # r11 = 2 * (q0 * q0 + q2 * q2) - 1
+        # r12 = 2 * (q2 * q3 - q0 * q1)
+        #
+        # r20 = 2 * (q1 * q3 - q0 * q2)
+        # r21 = 2 * (q2 * q3 + q0 * q1)
+        # r22 = 2 * (q0 * q0 + q3 * q3) - 1
+        #
+        # rot_matrix = np.array([[r00, r01, r02],
+        #                        [r10, r11, r12],
+        #                        [r20, r21, r22]])
+        #
+        # return rot_matrix
 
-        r10 = 2 * (q1 * q2 + q0 * q3)
-        r11 = 2 * (q0 * q0 + q2 * q2) - 1
-        r12 = 2 * (q2 * q3 - q0 * q1)
+    def _extrinsics_matrix(self, qvec, tvec):
 
-        r20 = 2 * (q1 * q3 - q0 * q2)
-        r21 = 2 * (q2 * q3 + q0 * q1)
-        r22 = 2 * (q0 * q0 + q3 * q3) - 1
+        w2c_mats = []
+        bottom = np.array([[0, 0, 0, 1.]])
 
-        rot_matrix = np.array([[r00, r01, r02],
-                               [r10, r11, r12],
-                               [r20, r21, r22]])
+        R = self._quaternion_to_rotation_matrix(qvec)
+        t = np.array(tvec).reshape(3, 1)
+        w2c_mats = np.concatenate([np.concatenate([R, t], 1), bottom], 0)
 
-        return rot_matrix
+        camout2world = np.linalg.inv(w2c_mats)
+        camout2world[:3, :3] = camout2world[:3, :3] @ np.eye(3)
+        poses = camout2world
+        # poses = np.linalg.inv(w2c_mats)[:3]  # (N_images = 1, 3, 4) cam2world matrices
+        # poses = w2c_mats
+        return poses
 
-    def _extrinsics_matrix(self, qw, qx, qy, qz, tx, ty, tz):
-        R = self._quaternion_to_rotation_matrix(qw, qx, qy, qz)
 
-        extrinsics = np.eye(4)
-        extrinsics[:3, :3] = R
-        extrinsics[:3, 3] = [tx, ty, tz]
-
-        return extrinsics
+        # R = self._quaternion_to_rotation_matrix(qw, qx, qy, qz)
+        # extrinsics = np.eye(4)
+        # extrinsics[:3, :3] = R
+        # extrinsics[:3, 3] = [tx, ty, tz]
+        #
+        # return extrinsics
 
     def _intrinsic_matrix(self, fx, fy, cx, cy):
         K = np.array([
@@ -150,8 +192,25 @@ class UnderWaterDataset(BaseStereoViewDataset):
         ])
         return K
 
+    def read_colmap_depth_map(self, bin_path):
+        with open(bin_path, "rb") as fid:
+            width, height, channels = np.genfromtxt(
+                fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
+            )
+            fid.seek(0)
+            num_delimiter = 0
+            byte = fid.read(1)
+            while True:
+                if byte == b"&":
+                    num_delimiter += 1
+                    if num_delimiter >= 3:
+                        break
+                byte = fid.read(1)
+            array = np.fromfile(fid, np.float32)
+        array = array.reshape((width, height, channels), order="F")
+        return np.transpose(array, (1, 0, 2)).squeeze()
+
     def _get_one_view(self, idx, indexes):
-        # print('idxxxxxxxxx', idx)
         if isinstance(idx, tuple):
             # the idx is specifying the aspect-ratio
             idx, ar_idx = idx
@@ -178,51 +237,54 @@ class UnderWaterDataset(BaseStereoViewDataset):
         if not pose:
             raise ValueError(f"image id {image_id} not found in images.txt")
 
-        camera_id = pose["camera_id"]
+        camera_id = pose.camera_id
         intrinsics = self.intrinsic_camera.get(camera_id)
         if not intrinsics:
             raise ValueError(f"camera id {camera_id} not found in cameras.txt")
 
-        qw, qx, qy, qz = pose["rotation"]
-        tx, ty, tz = pose["translation"]
-        camera_pose = self._extrinsics_matrix(qw, qx, qy, qz, tx, ty, tz)
+        qvec = pose.qvec
+        tvec = pose.tvec
+        camera_pose = self._extrinsics_matrix(qvec, tvec)
 
-        fx = intrinsics['fx']
-        fy = intrinsics['fy']
-        cx = intrinsics['cx']
-        cy = intrinsics['cy']
+        fx = intrinsics.params[0]
+        fy = intrinsics.params[1]
+        cx = intrinsics.params[2]
+        cy = intrinsics.params[3]
 
         camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
 
-        image_name = pose["image_name"]
+        image_name = pose.name
         rgb_image_path = osp.join(self.images_path, image_name)
         depthmap_path = osp.join(self.depthmap_path, f"{image_name}.geometric.bin")
+        # normal_depthmap_path = osp.join(self.normal_depthmap_path, f"{image_name}.geometric.bin")
 
         rgb_image = imread_cv2(rgb_image_path)
         if rgb_image is None:
             raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
 
-        with open(depthmap_path, "rb") as fid:
-            width, height, channels = np.genfromtxt(
-                fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
-            )
-            fid.seek(0)
-            num_delimiter = 0
-            byte = fid.read(1)
-            while True:
-                if byte == b"&":
-                    num_delimiter += 1
-                    if num_delimiter >= 3:
-                        break
-                byte = fid.read(1)
-            array = np.fromfile(fid, np.float32)
-        array = array.reshape((width, height, channels), order="F")
-        depthmap = np.transpose(array, (1, 0, 2)).squeeze()
+        depthmap = self.read_colmap_depth_map(depthmap_path)
+        # normal_depthmap = self.read_colmap_depth_map(normal_depthmap_path)
 
         if depthmap is None:
             raise FileNotFoundError(f"Depth map for {image_name} not found at {depthmap_path}")
 
         depthmap[~np.isfinite(depthmap)] = 0
+
+        # plt.figure(figsize=(8, 6))
+        # plt.imshow(depthmap, cmap='viridis')  # Use a colormap like 'viridis', 'plasma', or 'gray'
+        # plt.colorbar(label='Depth Value')
+        # plt.title(f'{image_name} Depth Map Visualization')
+        # plt.xlabel('X-axis')
+        # plt.ylabel('Y-axis')
+        # plt.show()
+        #
+        # plt.figure(figsize=(8, 6))
+        # plt.imshow(normal_depthmap, cmap='viridis')  # Use a colormap like 'viridis', 'plasma', or 'gray'
+        # plt.colorbar(label='Normal Depth Value')
+        # plt.title(f'{image_name} Normal Depth Map Visualization')
+        # plt.xlabel('X-axis')
+        # plt.ylabel('Y-axis')
+        # plt.show()
 
         rgb_image, depthmap, camera_intrinsics = self._crop_resize_if_necessary(
             rgb_image, depthmap, camera_intrinsics, resolution, rng=self._rng, info=image_name)
@@ -232,14 +294,14 @@ class UnderWaterDataset(BaseStereoViewDataset):
         return dict(
             img=rgb_image,
             depthmap=depthmap,
-            camera_pose=camera_pose.astype(np.float32),
-            camera_intrinsics=camera_intrinsics.astype(np.float32),
+            camera_pose=camera_pose,
+            camera_intrinsics=camera_intrinsics,
             dataset='UnderWaterDataset',
             label=self.ROOT,
             instance=image_name
         )
 
-    def compute_iou(self, pointcloud1, pointcloud2, iou_threshold=0.75, pixels_count=40000, distance_threshold=1):
+    def compute_iou(self, pointcloud1, pointcloud2, iou_threshold=0.75, pixels_count=40000, distance_threshold=0.4):
         if len(pointcloud1) > pixels_count:
             pointcloud1 = pointcloud1[np.random.choice(len(pointcloud1), pixels_count, replace=False)]
         if len(pointcloud2) > pixels_count:
@@ -256,6 +318,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
         # iou = min(intersection1 / pixels_count, intersection2 / pixels_count)
         iou = intersection1 / len(pointcloud1)
 
+        # print('iou', iou)
+
         if iou > iou_threshold:
             return 0.0
 
@@ -269,18 +333,6 @@ class UnderWaterDataset(BaseStereoViewDataset):
         if len(point_cloud.shape) == 3:
             point_cloud = point_cloud.reshape(-1, 3)
         return point_cloud
-        # tree = cKDTree(point_cloud)
-        #
-        # indices = tree.query_ball_tree(tree, radius)
-        #
-        # visible_mask = np.full(len(point_cloud), True, dtype=bool)
-        # for i, neighbors in enumerate(indices):
-        #     if visible_mask[i]:
-        #         for neighbor in neighbors[1:]:
-        #             visible_mask[neighbor] = False
-        #
-        # visible_points = point_cloud[visible_mask]
-        # return visible_points
 
     def compute_iou_with_occlusion(self, pc1, pc2, iou_threshold, radius=0.05):
         """
@@ -298,7 +350,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         angle_term = 4 * np.cos(alpha) * (1 - np.cos(alpha))
         return iou * angle_term if angle_term > 0 else 0
 
-    def select_best_pairs(self, pairs_indexes, iou_threshold=0.85, score_threshold=0.001):
+    def select_best_pairs(self, pairs_indexes, iou_threshold=0.75, score_threshold=0.001):
         """
         Select the best image pairs using a greedy algorithm
         """
@@ -325,14 +377,19 @@ class UnderWaterDataset(BaseStereoViewDataset):
             rotation_diff = pose1[:3, :3].T @ pose2[:3, :3]  # Relative rotation matrix
             alpha = np.arccos(np.clip((np.trace(rotation_diff) - 1) / 2, -1, 1))  # Angle in radians
 
+            # print('alpha', alpha)
+
             score = self.quality_pair_score(iou, alpha)
+
+            # print('score', score)
+
             if score > score_threshold:
                 pair_scores.append((score, alpha, self.split_data[i], self.split_data[j]))
 
         pair_scores.sort(key=lambda x: x[0], reverse=True)
         return pair_scores
 
-    def _create_pairs_indexes(self, pairs_per_image=30, step=2, image_threshold=50):
+    def _create_pairs_indexes(self, pairs_per_image=40, step=3, image_threshold=50):
         n = len(self.split_data)
 
         pairs = []
@@ -357,12 +414,6 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
         print('LEN selected_pairs', len(selected_pairs))
 
-        # for i in range(n - 1):
-        #     if (self.split_data[i], self.split_data[i + 1]) not in selected_pairs:
-        #         selected_pairs.append((self.split_data[i], self.split_data[i + 1]))
-
-        # print('LEN selected_pairs with adjacent frames', len(selected_pairs))
-
         return selected_pairs
 
 
@@ -375,23 +426,23 @@ class UnderWaterDataset(BaseStereoViewDataset):
             if not pose:
                 raise ValueError(f"image id {image_id} not found in images.txt")
 
-            camera_id = pose["camera_id"]
+            camera_id = pose.camera_id
             intrinsics = self.intrinsic_camera.get(camera_id)
             if not intrinsics:
                 raise ValueError(f"camera id {camera_id} not found in cameras.txt")
 
-            qw, qx, qy, qz = pose["rotation"]
-            tx, ty, tz = pose["translation"]
-            camera_pose = self._extrinsics_matrix(qw, qx, qy, qz, tx, ty, tz)
+            qvec = pose.qvec
+            tvec = pose.tvec
+            camera_pose = self._extrinsics_matrix(qvec, tvec)
 
-            fx = intrinsics['fx']
-            fy = intrinsics['fy']
-            cx = intrinsics['cx']
-            cy = intrinsics['cy']
+            fx = intrinsics.params[0]
+            fy = intrinsics.params[1]
+            cx = intrinsics.params[2]
+            cy = intrinsics.params[3]
 
             camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
 
-            image_name = pose["image_name"]
+            image_name = pose.name
             rgb_image_path = osp.join(self.images_path, image_name)
             depthmap_path = osp.join(self.depthmap_path, f"{image_name}.geometric.bin")
 
@@ -399,27 +450,20 @@ class UnderWaterDataset(BaseStereoViewDataset):
             if rgb_image is None:
                 raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
 
-            with open(depthmap_path, "rb") as fid:
-                width, height, channels = np.genfromtxt(
-                    fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
-                )
-                fid.seek(0)
-                num_delimiter = 0
-                byte = fid.read(1)
-                while True:
-                    if byte == b"&":
-                        num_delimiter += 1
-                        if num_delimiter >= 3:
-                            break
-                    byte = fid.read(1)
-                array = np.fromfile(fid, np.float32)
-            array = array.reshape((width, height, channels), order="F")
-            depthmap = np.transpose(array, (1, 0, 2)).squeeze()
+            depthmap = self.read_colmap_depth_map(depthmap_path)
 
             if depthmap is None:
                 raise FileNotFoundError(f"Depth map for {image_name} not found at {depthmap_path}")
 
             depthmap[~np.isfinite(depthmap)] = 0
+
+            # plt.figure(figsize=(8, 6))
+            # plt.imshow(depthmap, cmap='viridis')  # Use a colormap like 'viridis', 'plasma', or 'gray'
+            # plt.colorbar(label='Depth Value')
+            # plt.title(f'{image_name} Depth Map Visualization')
+            # plt.xlabel('X-axis')
+            # plt.ylabel('Y-axis')
+            # plt.show()
 
             rgb_image, depthmap, camera_intrinsics = self._crop_resize_if_necessary(
                 rgb_image, depthmap, camera_intrinsics, resolution, rng=rng, info=image_name)
@@ -427,8 +471,8 @@ class UnderWaterDataset(BaseStereoViewDataset):
             views.append(dict(
                 img=rgb_image,
                 depthmap=depthmap,
-                camera_pose=camera_pose.astype(np.float32),
-                camera_intrinsics=camera_intrinsics.astype(np.float32),
+                camera_pose=camera_pose,
+                camera_intrinsics=camera_intrinsics,
                 dataset='UnderWaterDataset',
                 label=self.ROOT,
                 instance=image_name
@@ -437,7 +481,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         return views
 
 if __name__ == "__main__":
-    train_dataset = UnderWaterDataset(split='train', ROOT="/home/aleksandra/dense_glomap_output", resolution=(224, 224))
+    train_dataset = UnderWaterDataset(split='train', ROOT="/home/aleksandra/dense_glomap_output_2", resolution=(224, 224))
     test_dataset = UnderWaterDataset(split='test', ROOT="/home/aleksandra/dense_glomap_output", resolution=(224, 224))
 
     print(len(train_dataset), len(test_dataset))
@@ -451,3 +495,28 @@ if __name__ == "__main__":
         views = test_dataset[idx]
         print(views)
         break
+
+    # from dust3r.datasets.base.base_stereo_view_dataset import view_name
+    # from dust3r.viz import SceneViz, auto_cam_size
+    # from dust3r.utils.image import rgb
+    #
+    # dataset = UnderWaterDataset(split='train', ROOT='/home/aleksandra/dense_glomap_output', resolution=224)
+    #
+    # for idx in np.random.permutation(10):
+    #     views = dataset[idx]
+    #     assert len(views) == 2
+    #     print(idx, view_name(views[0]), view_name(views[1]))
+    #     viz = SceneViz()
+    #     poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
+    #     cam_size = max(auto_cam_size(poses), 0.001)
+    #     for view_idx in [0, 1]:
+    #         pts3d = views[view_idx]['pts3d']
+    #         valid_mask = views[view_idx]['valid_mask']
+    #         colors = rgb(views[view_idx]['img'])
+    #         viz.add_pointcloud(pts3d, colors, valid_mask)
+    #         viz.add_camera(pose_c2w=views[view_idx]['camera_pose'],
+    #                        focal=views[view_idx]['camera_intrinsics'][0, 0],
+    #                        color=(idx * 255, (1 - idx) * 255, 0),
+    #                        image=colors,
+    #                        cam_size=cam_size)
+    #     viz.show()
