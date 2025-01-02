@@ -6,7 +6,7 @@
 #SBATCH --partition=gpu
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=23:59:00
+#SBATCH --time=63:59:00
 
 # Activate virtual environment or conda environment
 conda activate mast3r
