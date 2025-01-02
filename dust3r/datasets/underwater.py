@@ -23,8 +23,6 @@ from dust3r.datasets.utils.read_write_model import (read_cameras_binary, read_im
 
 from scipy.spatial import cKDTree
 
-import open3d as o3d
-
 class UnderWaterDataset(BaseStereoViewDataset):
     def __init__(self, *args, split, ROOT, **kwargs):
         self.ROOT = ROOT
@@ -244,14 +242,14 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
         qvec = pose.qvec
         tvec = pose.tvec
-        camera_pose = self._extrinsics_matrix(qvec, tvec)
+        camera_pose = self._extrinsics_matrix(qvec, tvec).astype(np.float32)
 
         fx = intrinsics.params[0]
         fy = intrinsics.params[1]
         cx = intrinsics.params[2]
         cy = intrinsics.params[3]
 
-        camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
+        camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy).astype(np.float32)
 
         image_name = pose.name
         rgb_image_path = osp.join(self.images_path, image_name)
@@ -262,7 +260,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
         if rgb_image is None:
             raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
 
-        depthmap = self.read_colmap_depth_map(depthmap_path)
+        depthmap = self.read_colmap_depth_map(depthmap_path).astype(np.float32)
         # normal_depthmap = self.read_colmap_depth_map(normal_depthmap_path)
 
         if depthmap is None:
@@ -433,14 +431,14 @@ class UnderWaterDataset(BaseStereoViewDataset):
 
             qvec = pose.qvec
             tvec = pose.tvec
-            camera_pose = self._extrinsics_matrix(qvec, tvec)
+            camera_pose = self._extrinsics_matrix(qvec, tvec).astype(np.float32)
 
             fx = intrinsics.params[0]
             fy = intrinsics.params[1]
             cx = intrinsics.params[2]
             cy = intrinsics.params[3]
 
-            camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy)
+            camera_intrinsics = self._intrinsic_matrix(fx, fy, cx, cy).astype(np.float32)
 
             image_name = pose.name
             rgb_image_path = osp.join(self.images_path, image_name)
@@ -450,7 +448,7 @@ class UnderWaterDataset(BaseStereoViewDataset):
             if rgb_image is None:
                 raise FileNotFoundError(f"RGB image {image_name} not found at {rgb_image_path}")
 
-            depthmap = self.read_colmap_depth_map(depthmap_path)
+            depthmap = self.read_colmap_depth_map(depthmap_path).astype(np.float32)
 
             if depthmap is None:
                 raise FileNotFoundError(f"Depth map for {image_name} not found at {depthmap_path}")
