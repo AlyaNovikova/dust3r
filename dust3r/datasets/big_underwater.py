@@ -28,8 +28,8 @@ class MergedUnderWaterDataset(BaseStereoViewDataset):
         self.root2 = self.ROOT + "_2"
         self.root3 = self.ROOT + "_3"
 
-        print("ARGS", *args)
-        print("KWARGS", **kwargs)
+        print("ARGS", args)
+        print("KWARGS", kwargs)
 
         self.dataset3 = UnderWaterDataset(*args, split=self.split, ROOT=self.root3, **kwargs)
         self.dataset1 = UnderWaterDataset(*args, split=self.split, ROOT=self.root1, **kwargs)
