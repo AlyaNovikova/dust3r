@@ -142,7 +142,7 @@ def train(args):
     print("Model = %s" % str(model_without_ddp))
 
     allocated_memory = torch.cuda.memory_allocated(0)
-    print(f"Memory Allocated 1: {allocated_memory / 1024 ** 2:.2f} MB")
+    # print(f"Memory Allocated 1: {allocated_memory / 1024 ** 2:.2f} MB")
 
     if args.pretrained and not args.resume:
         print('Loading pretrained: ', args.pretrained)
@@ -326,13 +326,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss /= accum_iter
 
         allocated_memory = torch.cuda.memory_allocated(0)
-        print(f"Memory Allocated 4: {allocated_memory / 1024 ** 2:.2f} MB")
+        # print(f"Memory Allocated 4: {allocated_memory / 1024 ** 2:.2f} MB")
 
         loss_scaler(loss, optimizer, parameters=model.parameters(),
                     update_grad=(data_iter_step + 1) % accum_iter == 0)
 
         allocated_memory = torch.cuda.memory_allocated(0)
-        print(f"Memory Allocated 5: {allocated_memory / 1024 ** 2:.2f} MB")
+        # print(f"Memory Allocated 5: {allocated_memory / 1024 ** 2:.2f} MB")
 
         if (data_iter_step + 1) % accum_iter == 0:
             optimizer.zero_grad()

@@ -13,6 +13,7 @@ from .waymo import Waymo  # noqa
 from .wildrgbd import WildRGBD  # noqa
 
 from .underwater import UnderWaterDataset
+from .big_underwater import MergedUnderWaterDataset
 
 
 def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=True, pin_mem=True):

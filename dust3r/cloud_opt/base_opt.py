@@ -361,12 +361,12 @@ def global_alignment_iter(net, cur_iter, niter, lr_base, lr_min, optimizer, sche
     optimizer.zero_grad()
     loss = net()
     allocated_memory = torch.cuda.memory_allocated(0)
-    print(f"Memory Allocated 2: {allocated_memory / 1024 ** 2:.2f} MB")
+    # print(f"Memory Allocated 2: {allocated_memory / 1024 ** 2:.2f} MB")
 
     loss.backward()
 
     allocated_memory = torch.cuda.memory_allocated(0)
-    print(f"Memory Allocated 3: {allocated_memory / 1024 ** 2:.2f} MB")
+    # print(f"Memory Allocated 3: {allocated_memory / 1024 ** 2:.2f} MB")
     optimizer.step()
 
     return float(loss), lr
