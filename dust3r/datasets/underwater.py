@@ -390,8 +390,6 @@ class UnderWaterDataset(BaseStereoViewDataset):
     def _create_pairs_indexes(self, pairs_per_image=30, step=5, image_threshold=50):
         n = len(self.split_data)
 
-        n = 20
-
         if n > 500:
             step = step * 2 - 1
 
