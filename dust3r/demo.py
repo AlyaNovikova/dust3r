@@ -233,7 +233,7 @@ def main_demo(tmpdirname, model, device, image_size, server_name, server_port, s
                 # adjust the confidence threshold
                 min_conf_thr = gradio.Slider(label="min_conf_thr", value=3.0, minimum=1.0, maximum=20, step=0.1)
                 # adjust the camera size in the output pointcloud
-                cam_size = gradio.Slider(label="cam_size", value=0.05, minimum=0.001, maximum=0.1, step=0.001)
+                cam_size = gradio.Slider(label="cam_size", value=0.03, minimum=0.001, maximum=0.1, step=0.001)
             with gradio.Row():
                 as_pointcloud = gradio.Checkbox(value=False, label="As pointcloud")
                 # two post process implemented
